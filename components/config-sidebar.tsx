@@ -28,6 +28,8 @@ import {
   Plus,
   Trash2,
   Edit2,
+  FileImage,
+  FileCode,
 } from "lucide-react"
 
 const chartTypes: { type: ChartType; label: string; icon: React.ElementType }[] = [

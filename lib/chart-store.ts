@@ -273,7 +273,9 @@ export const useChartStore = create<ChartStore>()(
                   type: "radar",
                   data: chartData.map((dataset) => ({
                     name: dataset.label,
-                    value: dataset.data.map((d) => d.value),
+                    value: dataset.data.map((d) => 
+                      Array.isArray(d.value) ? d.value[0] : d.value
+                    ),
                   })),
                 },
               ],
@@ -359,12 +361,14 @@ export const useChartStore = create<ChartStore>()(
                 {
                   name: chartData[0]?.label || "Gauge",
                   type: "gauge",
-                  data: [
-                    {
-                      value: chartData[0]?.data[0]?.value || 0,
-                      name: chartData[0]?.data[0]?.name || "Score",
-                    },
-                  ],
+                                  data: [
+                  {
+                    value: Array.isArray(chartData[0]?.data[0]?.value) 
+                      ? chartData[0].data[0].value[0] 
+                      : (chartData[0]?.data[0]?.value || 0),
+                    name: chartData[0]?.data[0]?.name || "Score",
+                  },
+                ],
                   detail: {
                     formatter: "{value}",
                   },
