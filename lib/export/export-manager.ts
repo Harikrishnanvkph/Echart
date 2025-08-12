@@ -44,11 +44,14 @@ export class ExportManager {
       await this.exportAsSVG(chartElement, filename)
     } else {
       const canvas = await html2canvas(chartElement, {
-        scale,
-        backgroundColor,
+        backgroundColor: backgroundColor || '#ffffff',
         useCORS: true,
-        logging: false
-      })
+        logging: false,
+        width: chartElement.offsetWidth * scale,
+        height: chartElement.offsetHeight * scale,
+        windowWidth: chartElement.scrollWidth,
+        windowHeight: chartElement.scrollHeight
+      } as any)
 
       canvas.toBlob(
         (blob) => {
@@ -87,11 +90,14 @@ export class ExportManager {
     } = options
 
     const canvas = await html2canvas(chartElement, {
-      scale,
-      backgroundColor,
+      backgroundColor: backgroundColor || '#ffffff',
       useCORS: true,
-      logging: false
-    })
+      logging: false,
+      width: chartElement.offsetWidth * scale,
+      height: chartElement.offsetHeight * scale,
+      windowWidth: chartElement.scrollWidth,
+      windowHeight: chartElement.scrollHeight
+    } as any)
 
     const imgData = canvas.toDataURL('image/png')
     const pdf = new jsPDF({
