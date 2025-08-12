@@ -276,14 +276,14 @@ export default function EditorPage() {
         case 'jpg':
         case 'svg':
           await exportManager.exportAsImage(
-            chartRef.current.getEchartsInstance().getDom(),
+            chartRef.current.getDom(),
             format as any,
             { filename: `chart.${format}` }
           )
           break
         case 'pdf':
           await exportManager.exportAsPDF(
-            chartRef.current.getEchartsInstance().getDom(),
+            chartRef.current.getDom(),
             { filename: 'chart.pdf' }
           )
           break
@@ -479,11 +479,13 @@ export default function EditorPage() {
               <div className="flex-1 p-4">
                 {chartConfig && Object.keys(chartConfig).length > 0 && (
                   <ReactECharts
-                    ref={chartRef}
                     option={chartConfig}
                     style={{ height: '100%', width: '100%' }}
                     theme="default"
                     opts={{ renderer: 'svg' }}
+                    onChartReady={(instance) => {
+                      chartRef.current = instance
+                    }}
                   />
                 )}
               </div>
