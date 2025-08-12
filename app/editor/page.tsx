@@ -1,15 +1,19 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Slider } from '@/components/ui/slider'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { ChartTypeSelector } from '@/components/chart-type-selector'
-import { ConfigurationPanel } from '@/components/configuration-panel'
-import { CHART_TYPES } from '@/lib/chart-types-config'
-import { exportManager } from '@/lib/export/export-manager'
+import { toast } from 'sonner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,196 +21,364 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   Download,
   Upload,
-  Share2,
-  Save,
-  Code,
-  Image,
-  FileText,
-  Database,
+  RefreshCw,
   Settings,
-  Palette,
-  Layout,
   BarChart3,
-  Menu,
-  Cloud,
-  Users,
-  History,
-  Sparkles,
-  Play,
-  Pause,
-  RotateCcw
+  LineChart,
+  PieChart,
+  ScatterChart,
+  AreaChart,
+  FileJson,
+  FileImage,
+  Code2,
+  Palette,
+  Database,
+  Plus,
+  Trash2,
+  Copy,
+  Save
 } from 'lucide-react'
 
 // Dynamically import ECharts to avoid SSR issues
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
+// Chart type definitions
+const CHART_TYPES = [
+  { id: 'line', name: 'Line Chart', icon: LineChart },
+  { id: 'bar', name: 'Bar Chart', icon: BarChart3 },
+  { id: 'pie', name: 'Pie Chart', icon: PieChart },
+  { id: 'scatter', name: 'Scatter Plot', icon: ScatterChart },
+  { id: 'area', name: 'Area Chart', icon: AreaChart },
+  { id: 'radar', name: 'Radar Chart', icon: BarChart3 },
+  { id: 'gauge', name: 'Gauge Chart', icon: BarChart3 },
+  { id: 'funnel', name: 'Funnel Chart', icon: BarChart3 },
+  { id: 'heatmap', name: 'Heatmap', icon: BarChart3 },
+]
+
+// Color themes
+const COLOR_THEMES = {
+  default: ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'],
+  dark: ['#dd6b66', '#759aa0', '#e69d87', '#8dc1a9', '#ea7e53', '#eedd78', '#73a373', '#73b9bc', '#7289ab'],
+  colorful: ['#c23531', '#2f4554', '#61a0a8', '#d48265', '#91c7ae', '#749f83', '#ca8622', '#bda29a', '#6e7074'],
+  warm: ['#ff7f50', '#ff6347', '#ffa500', '#ffd700', '#ff8c00', '#ff4500', '#dc143c', '#b22222', '#8b0000'],
+  cool: ['#00ced1', '#4682b4', '#1e90ff', '#0000ff', '#4169e1', '#6495ed', '#00bfff', '#87ceeb', '#87cefa'],
+}
+
+// Sample data generator
+const generateSampleData = (type: string, points: number = 7) => {
+  const categories = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const data = []
+  
+  for (let i = 0; i < points; i++) {
+    data.push({
+      name: categories[i] || `Cat ${i + 1}`,
+      value: Math.floor(Math.random() * 100) + 20,
+      value2: Math.floor(Math.random() * 100) + 20,
+    })
+  }
+  
+  return data
+}
+
 export default function EditorPage() {
-  const [selectedChartType, setSelectedChartType] = useState('line')
-  const [chartConfig, setChartConfig] = useState<any>({})
-  const [chartData, setChartData] = useState<any[]>([])
-  const [activePanel, setActivePanel] = useState('charts')
-  const [showExportDialog, setShowExportDialog] = useState(false)
-  const [showDataDialog, setShowDataDialog] = useState(false)
+  // State management
+  const [selectedChart, setSelectedChart] = useState('line')
+  const [chartData, setChartData] = useState(() => generateSampleData('line'))
+  const [chartTitle, setChartTitle] = useState('My Chart')
+  const [chartSubtitle, setChartSubtitle] = useState('Data Visualization')
+  const [showLegend, setShowLegend] = useState(true)
+  const [showTooltip, setShowTooltip] = useState(true)
+  const [showGrid, setShowGrid] = useState(true)
+  const [animationDuration, setAnimationDuration] = useState([1000])
+  const [selectedTheme, setSelectedTheme] = useState('default')
+  const [xAxisLabel, setXAxisLabel] = useState('Category')
+  const [yAxisLabel, setYAxisLabel] = useState('Value')
+  const [dataPoints, setDataPoints] = useState(7)
+  
   const chartRef = useRef<any>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Initialize with sample data
-  useEffect(() => {
-    const sampleData = [
-      { name: 'Mon', value: 120, category: 'A' },
-      { name: 'Tue', value: 200, category: 'B' },
-      { name: 'Wed', value: 150, category: 'A' },
-      { name: 'Thu', value: 80, category: 'C' },
-      { name: 'Fri', value: 70, category: 'B' },
-      { name: 'Sat', value: 110, category: 'A' },
-      { name: 'Sun', value: 130, category: 'C' }
-    ]
-    setChartData(sampleData)
-    updateChartConfig('line', sampleData)
-  }, [])
-
-  const updateChartConfig = (type: string, data: any[]) => {
-    const chartType = CHART_TYPES[type]
-    if (!chartType) return
-
-    // Build ECharts option based on chart type
-    const option: any = {
+  // Build chart configuration
+  const buildChartOption = useCallback(() => {
+    const baseOption: any = {
       title: {
-        text: 'Interactive Chart',
-        subtext: 'Powered by ECharts',
-        left: 'center'
+        text: chartTitle,
+        subtext: chartSubtitle,
+        left: 'center',
+        top: 20,
+        textStyle: {
+          fontSize: 18,
+          fontWeight: 'bold'
+        },
+        subtextStyle: {
+          fontSize: 14
+        }
       },
       tooltip: {
-        trigger: type === 'pie' ? 'item' : 'axis',
+        show: showTooltip,
+        trigger: selectedChart === 'pie' ? 'item' : 'axis',
         axisPointer: {
           type: 'shadow'
         }
       },
       legend: {
-        bottom: 0,
-        data: [...new Set(data.map(d => d.category))]
+        show: showLegend,
+        bottom: 10,
+        data: ['Series 1', 'Series 2']
       },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '10%',
+      color: COLOR_THEMES[selectedTheme as keyof typeof COLOR_THEMES],
+      animation: true,
+      animationDuration: animationDuration[0],
+      grid: showGrid ? {
+        left: '5%',
+        right: '5%',
+        bottom: '15%',
+        top: '20%',
         containLabel: true
-      },
-      toolbox: {
-        feature: {
-          dataZoom: { show: true },
-          dataView: { show: true },
-          magicType: { show: true, type: ['line', 'bar', 'stack'] },
-          restore: { show: true },
-          saveAsImage: { show: true }
-        }
-      },
-      ...chartConfig
+      } : undefined
     }
 
     // Configure based on chart type
-    switch (type) {
+    switch (selectedChart) {
       case 'line':
       case 'bar':
       case 'area':
-        option.xAxis = {
-          type: 'category',
-          data: data.map(d => d.name),
-          ...chartConfig.xAxis
-        }
-        option.yAxis = {
-          type: 'value',
-          ...chartConfig.yAxis
-        }
-        option.series = [{
-          name: 'Series 1',
-          type: type === 'area' ? 'line' : type,
-          data: data.map(d => d.value),
-          areaStyle: type === 'area' ? {} : undefined,
-          smooth: type === 'line',
-          ...chartConfig.series?.[0]
-        }]
-        break
-
-      case 'pie':
-      case 'doughnut':
-        option.series = [{
-          name: 'Data',
-          type: 'pie',
-          radius: type === 'doughnut' ? ['40%', '70%'] : '70%',
-          data: data.map(d => ({ name: d.name, value: d.value })),
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
+        return {
+          ...baseOption,
+          xAxis: {
+            type: 'category',
+            name: xAxisLabel,
+            data: chartData.map(d => d.name),
+            axisLabel: {
+              rotate: 0
             }
           },
-          ...chartConfig.series?.[0]
-        }]
-        break
+          yAxis: {
+            type: 'value',
+            name: yAxisLabel
+          },
+          series: [
+            {
+              name: 'Series 1',
+              type: selectedChart === 'area' ? 'line' : selectedChart,
+              data: chartData.map(d => d.value),
+              smooth: selectedChart === 'line',
+              areaStyle: selectedChart === 'area' ? {} : undefined,
+              itemStyle: {
+                borderRadius: selectedChart === 'bar' ? [8, 8, 0, 0] : 0
+              }
+            },
+            {
+              name: 'Series 2',
+              type: selectedChart === 'area' ? 'line' : selectedChart,
+              data: chartData.map(d => d.value2),
+              smooth: selectedChart === 'line',
+              areaStyle: selectedChart === 'area' ? {} : undefined,
+              itemStyle: {
+                borderRadius: selectedChart === 'bar' ? [8, 8, 0, 0] : 0
+              }
+            }
+          ]
+        }
+
+      case 'pie':
+        return {
+          ...baseOption,
+          series: [{
+            name: 'Data',
+            type: 'pie',
+            radius: ['40%', '70%'],
+            center: ['50%', '50%'],
+            data: chartData.map(d => ({
+              name: d.name,
+              value: d.value
+            })),
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)'
+              }
+            },
+            label: {
+              show: true,
+              formatter: '{b}: {c} ({d}%)'
+            }
+          }]
+        }
 
       case 'scatter':
-        option.xAxis = { type: 'value', ...chartConfig.xAxis }
-        option.yAxis = { type: 'value', ...chartConfig.yAxis }
-        option.series = [{
-          name: 'Scatter',
-          type: 'scatter',
-          data: data.map(d => [d.value, Math.random() * 100]),
-          symbolSize: 10,
-          ...chartConfig.series?.[0]
-        }]
-        break
+        return {
+          ...baseOption,
+          xAxis: {
+            type: 'value',
+            name: xAxisLabel,
+            splitLine: {
+              show: showGrid
+            }
+          },
+          yAxis: {
+            type: 'value',
+            name: yAxisLabel,
+            splitLine: {
+              show: showGrid
+            }
+          },
+          series: [{
+            name: 'Scatter',
+            type: 'scatter',
+            data: chartData.map(d => [d.value, d.value2]),
+            symbolSize: 12,
+            itemStyle: {
+              shadowBlur: 2,
+              shadowColor: 'rgba(0, 0, 0, 0.3)',
+              shadowOffsetY: 2
+            }
+          }]
+        }
 
       case 'radar':
-        option.radar = {
-          indicator: data.map(d => ({ name: d.name, max: 250 }))
+        return {
+          ...baseOption,
+          radar: {
+            indicator: chartData.map(d => ({
+              name: d.name,
+              max: 150
+            }))
+          },
+          series: [{
+            name: 'Radar',
+            type: 'radar',
+            data: [
+              {
+                value: chartData.map(d => d.value),
+                name: 'Series 1'
+              },
+              {
+                value: chartData.map(d => d.value2),
+                name: 'Series 2'
+              }
+            ]
+          }]
         }
-        option.series = [{
-          name: 'Radar',
-          type: 'radar',
-          data: [{
-            value: data.map(d => d.value),
-            name: 'Data'
-          }],
-          ...chartConfig.series?.[0]
-        }]
-        break
 
       case 'gauge':
-        option.series = [{
-          name: 'Gauge',
-          type: 'gauge',
-          data: [{ value: data[0]?.value || 50, name: 'Score' }],
-          detail: { formatter: '{value}' },
-          ...chartConfig.series?.[0]
-        }]
-        break
+        const gaugeValue = chartData[0]?.value || 75
+        return {
+          ...baseOption,
+          series: [{
+            name: 'Gauge',
+            type: 'gauge',
+            startAngle: 180,
+            endAngle: 0,
+            min: 0,
+            max: 100,
+            splitNumber: 10,
+            itemStyle: {
+              color: COLOR_THEMES[selectedTheme as keyof typeof COLOR_THEMES][0]
+            },
+            progress: {
+              show: true,
+              width: 30
+            },
+            pointer: {
+              show: true,
+              length: '80%',
+              width: 8
+            },
+            axisLine: {
+              lineStyle: {
+                width: 30
+              }
+            },
+            axisTick: {
+              distance: -30,
+              splitNumber: 5,
+              lineStyle: {
+                width: 2,
+                color: '#999'
+              }
+            },
+            splitLine: {
+              distance: -35,
+              length: 14,
+              lineStyle: {
+                width: 3,
+                color: '#999'
+              }
+            },
+            axisLabel: {
+              distance: -20,
+              color: '#999',
+              fontSize: 12
+            },
+            detail: {
+              valueAnimation: true,
+              width: '60%',
+              lineHeight: 40,
+              borderRadius: 8,
+              offsetCenter: [0, '35%'],
+              fontSize: 28,
+              fontWeight: 'bolder',
+              formatter: '{value}%',
+              color: 'inherit'
+            },
+            data: [{
+              value: gaugeValue,
+              name: 'Score'
+            }]
+          }]
+        }
 
       case 'funnel':
-        option.series = [{
-          name: 'Funnel',
-          type: 'funnel',
-          data: data.map(d => ({ name: d.name, value: d.value })).sort((a, b) => b.value - a.value),
-          ...chartConfig.series?.[0]
-        }]
-        break
+        return {
+          ...baseOption,
+          series: [{
+            name: 'Funnel',
+            type: 'funnel',
+            left: '10%',
+            top: 100,
+            bottom: 60,
+            width: '80%',
+            min: 0,
+            max: 100,
+            minSize: '0%',
+            maxSize: '100%',
+            sort: 'descending',
+            gap: 2,
+            label: {
+              show: true,
+              position: 'inside'
+            },
+            labelLine: {
+              length: 10,
+              lineStyle: {
+                width: 1,
+                type: 'solid'
+              }
+            },
+            itemStyle: {
+              borderColor: '#fff',
+              borderWidth: 1
+            },
+            emphasis: {
+              label: {
+                fontSize: 20
+              }
+            },
+            data: chartData.map((d, i) => ({
+              value: 100 - (i * 15),
+              name: d.name
+            }))
+          }]
+        }
 
       case 'heatmap':
-        const hours = ['12a', '1a', '2a', '3a', '4a', '5a', '6a', '7a', '8a', '9a', '10a', '11a']
+        const hours = ['12a', '2a', '4a', '6a', '8a', '10a', '12p', '2p', '4p', '6p', '8p', '10p']
         const days = ['Saturday', 'Friday', 'Thursday', 'Wednesday', 'Tuesday', 'Monday', 'Sunday']
         const heatmapData = []
         for (let i = 0; i < 7; i++) {
@@ -214,128 +386,153 @@ export default function EditorPage() {
             heatmapData.push([j, i, Math.floor(Math.random() * 10)])
           }
         }
-        option.xAxis = { type: 'category', data: hours }
-        option.yAxis = { type: 'category', data: days }
-        option.visualMap = {
-          min: 0,
-          max: 10,
-          calculable: true,
-          orient: 'horizontal',
-          left: 'center',
-          bottom: '15%'
+        
+        return {
+          ...baseOption,
+          xAxis: {
+            type: 'category',
+            data: hours,
+            splitArea: {
+              show: true
+            }
+          },
+          yAxis: {
+            type: 'category',
+            data: days,
+            splitArea: {
+              show: true
+            }
+          },
+          visualMap: {
+            min: 0,
+            max: 10,
+            calculable: true,
+            orient: 'horizontal',
+            left: 'center',
+            bottom: '5%',
+            inRange: {
+              color: COLOR_THEMES[selectedTheme as keyof typeof COLOR_THEMES]
+            }
+          },
+          series: [{
+            name: 'Heatmap',
+            type: 'heatmap',
+            data: heatmapData,
+            label: {
+              show: true
+            },
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowColor: 'rgba(0, 0, 0, 0.5)'
+              }
+            }
+          }]
         }
-        option.series = [{
-          name: 'Heatmap',
-          type: 'heatmap',
-          data: heatmapData,
-          label: { show: true },
-          ...chartConfig.series?.[0]
-        }]
-        break
 
       default:
-        // Default configuration for other chart types
-        option.xAxis = { type: 'category', data: data.map(d => d.name) }
-        option.yAxis = { type: 'value' }
-        option.series = [{
-          type: type,
-          data: data.map(d => d.value)
-        }]
+        return baseOption
     }
+  }, [selectedChart, chartData, chartTitle, chartSubtitle, showLegend, showTooltip, showGrid, animationDuration, selectedTheme, xAxisLabel, yAxisLabel])
 
-    setChartConfig(option)
-  }
-
+  // Handlers
   const handleChartTypeChange = (type: string) => {
-    setSelectedChartType(type)
-    updateChartConfig(type, chartData)
+    setSelectedChart(type)
+    setChartData(generateSampleData(type, dataPoints))
+    toast.success(`Switched to ${type} chart`)
   }
 
-  const handleConfigChange = (path: string, value: any) => {
-    const keys = path.split('.')
-    const newConfig = { ...chartConfig }
-    let current = newConfig
-    
-    for (let i = 0; i < keys.length - 1; i++) {
-      if (!current[keys[i]]) {
-        current[keys[i]] = {}
-      }
-      current = current[keys[i]]
-    }
-    
-    current[keys[keys.length - 1]] = value
-    setChartConfig(newConfig)
+  const handleDataPointsChange = (value: number[]) => {
+    setDataPoints(value[0])
+    setChartData(generateSampleData(selectedChart, value[0]))
   }
 
-  const handleExport = async (format: string) => {
+  const handleRefreshData = () => {
+    setChartData(generateSampleData(selectedChart, dataPoints))
+    toast.success('Data refreshed')
+  }
+
+  const handleExportImage = async (format: 'png' | 'svg') => {
     if (!chartRef.current) return
-
+    
     try {
-      switch (format) {
-        case 'png':
-        case 'jpg':
-        case 'svg':
-          await exportManager.exportAsImage(
-            chartRef.current.getDom(),
-            format as any,
-            { filename: `chart.${format}` }
-          )
-          break
-        case 'pdf':
-          await exportManager.exportAsPDF(
-            chartRef.current.getDom(),
-            { filename: 'chart.pdf' }
-          )
-          break
-        case 'json':
-          await exportManager.exportAsJSON(chartConfig, { filename: 'chart-config.json' })
-          break
-        case 'html':
-          await exportManager.exportAsHTML(chartConfig, chartData, { filename: 'chart.html' })
-          break
-        case 'csv':
-          await exportManager.exportAsCSV(chartData, Object.keys(chartData[0] || {}).map(k => ({ id: k, name: k })), { filename: 'data.csv' })
-          break
-        case 'excel':
-          await exportManager.exportAsExcel(chartData, Object.keys(chartData[0] || {}).map(k => ({ id: k, name: k })), { filename: 'data.xlsx' })
-          break
-      }
+      const instance = chartRef.current
+      const url = instance.getDataURL({
+        type: format,
+        pixelRatio: 2,
+        backgroundColor: '#fff'
+      })
+      
+      const link = document.createElement('a')
+      link.download = `chart.${format}`
+      link.href = url
+      link.click()
+      
+      toast.success(`Chart exported as ${format.toUpperCase()}`)
     } catch (error) {
-      console.error('Export failed:', error)
+      toast.error('Failed to export chart')
     }
   }
 
-  const handleCodeExport = async (framework: string) => {
-    await exportManager.exportAsCode(chartConfig, framework as any, { filename: `chart.${framework}` })
+  const handleExportData = () => {
+    const dataStr = JSON.stringify(chartData, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.download = 'chart-data.json'
+    link.href = url
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Data exported as JSON')
+  }
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string)
+        if (Array.isArray(data)) {
+          setChartData(data)
+          setDataPoints(data.length)
+          toast.success('Data imported successfully')
+        } else {
+          toast.error('Invalid data format')
+        }
+      } catch (error) {
+        toast.error('Failed to parse JSON file')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  const handleCopyConfig = () => {
+    const config = buildChartOption()
+    navigator.clipboard.writeText(JSON.stringify(config, null, 2))
+    toast.success('Configuration copied to clipboard')
   }
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <header className="border-b px-4 py-3 flex items-center justify-between bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="bg-white border-b px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon">
-            <Menu className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            <span className="font-bold text-xl">ECharts Studio</span>
-            <Badge variant="secondary">Pro</Badge>
-          </div>
+          <BarChart3 className="h-6 w-6 text-blue-600" />
+          <h1 className="text-xl font-semibold">ECharts Studio</h1>
+          <Badge variant="secondary">v2.0</Badge>
         </div>
-
+        
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="gap-2">
-            <Cloud className="h-4 w-4" />
-            Save to Cloud
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <Users className="h-4 w-4" />
-            Collaborate
-          </Button>
-          <Button variant="ghost" size="sm" className="gap-2">
-            <History className="h-4 w-4" />
-            Version History
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshData}
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh Data
           </Button>
           
           <DropdownMenu>
@@ -345,53 +542,24 @@ export default function EditorPage() {
                 Export
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end">
               <DropdownMenuLabel>Export Options</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Image className="mr-2 h-4 w-4" />
-                  Export as Image
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => handleExport('png')}>PNG</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('jpg')}>JPG</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('svg')}>SVG</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('pdf')}>PDF</DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Export Data
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => handleExport('csv')}>CSV</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('excel')}>Excel</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport('json')}>JSON</DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Code className="mr-2 h-4 w-4" />
-                  Export Code
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => handleCodeExport('react')}>React</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleCodeExport('vue')}>Vue</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleCodeExport('angular')}>Angular</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleCodeExport('svelte')}>Svelte</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleCodeExport('vanilla')}>Vanilla JS</DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleExport('html')}>
-                <Layout className="mr-2 h-4 w-4" />
-                Export as HTML
+              <DropdownMenuItem onClick={() => handleExportImage('png')}>
+                <FileImage className="mr-2 h-4 w-4" />
+                Export as PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportImage('svg')}>
+                <FileImage className="mr-2 h-4 w-4" />
+                Export as SVG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportData}>
+                <FileJson className="mr-2 h-4 w-4" />
+                Export Data (JSON)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCopyConfig}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Configuration
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -399,129 +567,254 @@ export default function EditorPage() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal">
-          {/* Left Sidebar */}
-          <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-            <Tabs value={activePanel} onValueChange={setActivePanel} className="h-full flex flex-col">
-              <TabsList className="w-full justify-start rounded-none border-b h-auto p-0">
-                <TabsTrigger value="charts" className="rounded-none data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary">
-                  Charts
-                </TabsTrigger>
-                <TabsTrigger value="data" className="rounded-none data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary">
-                  Data
-                </TabsTrigger>
-                <TabsTrigger value="themes" className="rounded-none data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-primary">
-                  Themes
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="charts" className="flex-1 m-0">
-                <ChartTypeSelector 
-                  onSelectChart={handleChartTypeChange}
-                  selectedChart={selectedChartType}
-                />
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar */}
+        <aside className="w-80 bg-white border-r flex flex-col">
+          <Tabs defaultValue="chart" className="flex-1 flex flex-col">
+            <TabsList className="w-full rounded-none border-b">
+              <TabsTrigger value="chart" className="flex-1">Chart</TabsTrigger>
+              <TabsTrigger value="data" className="flex-1">Data</TabsTrigger>
+              <TabsTrigger value="style" className="flex-1">Style</TabsTrigger>
+            </TabsList>
+            
+            <ScrollArea className="flex-1">
+              <TabsContent value="chart" className="p-4 space-y-4 m-0">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Chart Type</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {CHART_TYPES.map((type) => {
+                      const Icon = type.icon
+                      return (
+                        <Button
+                          key={type.id}
+                          variant={selectedChart === type.id ? 'default' : 'outline'}
+                          size="sm"
+                          className="h-20 flex-col gap-1"
+                          onClick={() => handleChartTypeChange(type.id)}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span className="text-xs">{type.name}</span>
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="title">Chart Title</Label>
+                    <Input
+                      id="title"
+                      value={chartTitle}
+                      onChange={(e) => setChartTitle(e.target.value)}
+                      placeholder="Enter chart title"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="subtitle">Subtitle</Label>
+                    <Input
+                      id="subtitle"
+                      value={chartSubtitle}
+                      onChange={(e) => setChartSubtitle(e.target.value)}
+                      placeholder="Enter subtitle"
+                    />
+                  </div>
+
+                  {selectedChart !== 'pie' && selectedChart !== 'gauge' && (
+                    <>
+                      <div>
+                        <Label htmlFor="xaxis">X-Axis Label</Label>
+                        <Input
+                          id="xaxis"
+                          value={xAxisLabel}
+                          onChange={(e) => setXAxisLabel(e.target.value)}
+                          placeholder="X-Axis label"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="yaxis">Y-Axis Label</Label>
+                        <Input
+                          id="yaxis"
+                          value={yAxisLabel}
+                          onChange={(e) => setYAxisLabel(e.target.value)}
+                          placeholder="Y-Axis label"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="legend">Show Legend</Label>
+                    <Switch
+                      id="legend"
+                      checked={showLegend}
+                      onCheckedChange={setShowLegend}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="tooltip">Show Tooltip</Label>
+                    <Switch
+                      id="tooltip"
+                      checked={showTooltip}
+                      onCheckedChange={setShowTooltip}
+                    />
+                  </div>
+                  
+                  {selectedChart !== 'pie' && selectedChart !== 'gauge' && (
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="grid">Show Grid</Label>
+                      <Switch
+                        id="grid"
+                        checked={showGrid}
+                        onCheckedChange={setShowGrid}
+                      />
+                    </div>
+                  )}
+                </div>
               </TabsContent>
               
-              <TabsContent value="data" className="flex-1 p-4">
-                <div className="space-y-4">
-                  <Button className="w-full" variant="outline">
+              <TabsContent value="data" className="p-4 space-y-4 m-0">
+                <div>
+                  <Label>Data Points</Label>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Slider
+                      value={[dataPoints]}
+                      onValueChange={handleDataPointsChange}
+                      min={3}
+                      max={20}
+                      step={1}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium w-8">{dataPoints}</span>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     <Upload className="mr-2 h-4 w-4" />
-                    Import Data
+                    Import JSON Data
                   </Button>
-                  <Button className="w-full" variant="outline">
-                    <Database className="mr-2 h-4 w-4" />
-                    Connect Database
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleImportData}
+                  />
+                  
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={handleExportData}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Current Data
                   </Button>
-                  <div className="text-sm text-muted-foreground">
-                    Current data: {chartData.length} rows
+                  
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={handleRefreshData}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Generate New Data
+                  </Button>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <Label className="mb-2 block">Current Data</Label>
+                  <div className="bg-gray-50 rounded-md p-3 max-h-96 overflow-auto">
+                    <pre className="text-xs">
+                      {JSON.stringify(chartData, null, 2)}
+                    </pre>
                   </div>
                 </div>
               </TabsContent>
               
-              <TabsContent value="themes" className="flex-1 p-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {['Default', 'Dark', 'Vintage', 'Macarons', 'Shine', 'Roma'].map(theme => (
-                    <Button key={theme} variant="outline" size="sm" className="justify-start">
-                      <Palette className="mr-2 h-4 w-4" />
-                      {theme}
-                    </Button>
-                  ))}
+              <TabsContent value="style" className="p-4 space-y-4 m-0">
+                <div>
+                  <Label>Color Theme</Label>
+                  <Select value={selectedTheme} onValueChange={setSelectedTheme}>
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Default</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="colorful">Colorful</SelectItem>
+                      <SelectItem value="warm">Warm</SelectItem>
+                      <SelectItem value="cool">Cool</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Animation Duration (ms)</Label>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Slider
+                      value={animationDuration}
+                      onValueChange={setAnimationDuration}
+                      min={0}
+                      max={3000}
+                      step={100}
+                      className="flex-1"
+                    />
+                    <span className="text-sm font-medium w-12">{animationDuration[0]}</span>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <Label className="mb-2 block">Color Palette</Label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {COLOR_THEMES[selectedTheme as keyof typeof COLOR_THEMES].map((color, i) => (
+                      <div
+                        key={i}
+                        className="h-8 rounded border"
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
                 </div>
               </TabsContent>
-            </Tabs>
-          </ResizablePanel>
+            </ScrollArea>
+          </Tabs>
+        </aside>
 
-          <ResizableHandle />
-
-          {/* Center - Chart Preview */}
-          <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="h-full flex flex-col">
-              <div className="border-b px-4 py-2 flex items-center justify-between bg-muted/50">
-                <div className="flex items-center gap-2">
-                  <Badge>{CHART_TYPES[selectedChartType]?.label || 'Chart'}</Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {CHART_TYPES[selectedChartType]?.description}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="icon" variant="ghost">
-                    <Play className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost">
-                    <Pause className="h-4 w-4" />
-                  </Button>
-                  <Button size="icon" variant="ghost">
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="flex-1 p-4">
-                {chartConfig && Object.keys(chartConfig).length > 0 && (
-                  <ReactECharts
-                    option={chartConfig}
-                    style={{ height: '100%', width: '100%' }}
-                    theme="default"
-                    opts={{ renderer: 'svg' }}
-                    onChartReady={(instance) => {
-                      chartRef.current = instance
-                    }}
-                  />
-                )}
-              </div>
+        {/* Chart Preview */}
+        <main className="flex-1 p-6 overflow-auto bg-gray-50">
+          <Card className="h-full bg-white">
+            <div className="h-full p-4">
+              <ReactECharts
+                option={buildChartOption()}
+                style={{ height: '100%', width: '100%' }}
+                opts={{ renderer: 'svg' }}
+                onChartReady={(instance) => {
+                  chartRef.current = instance
+                }}
+              />
             </div>
-          </ResizablePanel>
-
-          <ResizableHandle />
-
-          {/* Right Sidebar - Configuration */}
-          <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
-            <ConfigurationPanel 
-              config={chartConfig}
-              onConfigChange={handleConfigChange}
-            />
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-
-      {/* Status Bar */}
-      <div className="border-t px-4 py-2 flex items-center justify-between text-sm bg-muted/50">
-        <div className="flex items-center gap-4">
-          <span className="text-muted-foreground">Ready</span>
-          <Badge variant="outline">35+ Chart Types</Badge>
-          <Badge variant="outline">500+ Options</Badge>
-          <Badge variant="outline">Real-time Sync</Badge>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="h-7 gap-1">
-            <Sparkles className="h-3 w-3" />
-            Animation: On
-          </Button>
-          <Button variant="ghost" size="sm" className="h-7 gap-1">
-            <Settings className="h-3 w-3" />
-            Performance: Optimized
-          </Button>
-        </div>
+          </Card>
+        </main>
       </div>
     </div>
   )
