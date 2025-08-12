@@ -30,7 +30,9 @@ import {
   Edit2,
   FileImage,
   FileCode,
+  Wrench
 } from "lucide-react"
+import { ToolsPanel } from "@/components/tools-panel"
 
 const chartTypes: { type: ChartType; label: string; icon: React.ElementType }[] = [
   { type: "bar", label: "Bar Chart", icon: BarChart3 },
@@ -63,6 +65,8 @@ export function ConfigSidebar({ className }: ConfigSidebarProps) {
     updateChartConfig,
     setExportFormat,
     exportFormat,
+    chartOption,
+    updateChartOption
   } = useChartStore()
 
   const [activeTab, setActiveTab] = useState("types")
@@ -105,6 +109,7 @@ export function ConfigSidebar({ className }: ConfigSidebarProps) {
     { id: "data", label: "Data", icon: Database },
     { id: "design", label: "Design", icon: Palette },
     { id: "labels", label: "Labels", icon: Tag },
+    { id: "tools", label: "Tools", icon: Wrench },
     { id: "animations", label: "Animations", icon: Zap },
     { id: "export", label: "Export", icon: Download },
   ]
@@ -328,6 +333,13 @@ export function ConfigSidebar({ className }: ConfigSidebarProps) {
                   <span className="text-sm">Show Grid</span>
                 </label>
               </div>
+            </div>
+          )}
+
+          {activeTab === "tools" && (
+            <div className="space-y-4">
+              <h3 className="font-semibold">Tools</h3>
+              <ToolsPanel className="border rounded" />
             </div>
           )}
 

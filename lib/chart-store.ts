@@ -54,12 +54,14 @@ interface ChartStore {
   chartData: ChartDataset[]
   chartConfig: ChartConfig
   chartOption: EChartsOption
+  chartOverrides?: Record<string, any>
   
   // Actions
   setChartType: (type: ChartType) => void
   setChartData: (data: ChartDataset[]) => void
   updateChartConfig: (config: Partial<ChartConfig>) => void
-  updateChartOption: (option: Partial<EChartsOption>) => void
+  updateChartOption: (option: EChartsOption | Partial<EChartsOption>) => void
+  setChartOverrides: (overrides: Record<string, any>) => void
   generateChartOption: () => void
   resetChart: () => void
   
@@ -104,6 +106,7 @@ export const useChartStore = create<ChartStore>()(
       chartData: defaultChartData,
       chartConfig: defaultChartConfig,
       chartOption: {},
+      chartOverrides: {},
       exportFormat: "png",
 
       setChartType: (type) => {
@@ -124,10 +127,15 @@ export const useChartStore = create<ChartStore>()(
       },
 
       updateChartOption: (option) => {
+        // Allow full replacement or partial merge
         set((state) => ({
-          chartOption: { ...state.chartOption, ...option },
+          chartOption: typeof (option as any)?.series !== 'undefined' || typeof (option as any)?.title !== 'undefined'
+            ? (option as EChartsOption)
+            : { ...state.chartOption, ...(option as Partial<EChartsOption>) },
         }))
       },
+
+      setChartOverrides: (overrides) => set({ chartOverrides: overrides }),
 
       generateChartOption: () => {
         const { chartType, chartData, chartConfig } = get()
@@ -388,6 +396,7 @@ export const useChartStore = create<ChartStore>()(
           chartData: defaultChartData,
           chartConfig: defaultChartConfig,
           chartOption: {},
+          chartOverrides: {},
         })
         get().generateChartOption()
       },

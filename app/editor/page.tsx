@@ -40,8 +40,10 @@ import {
   Plus,
   Trash2,
   Copy,
-  Save
+  Save,
+  Wrench
 } from 'lucide-react'
+import { ToolsPanel } from '@/components/tools-panel'
 
 // Dynamically import ECharts to avoid SSR issues
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
@@ -98,6 +100,7 @@ export default function EditorPage() {
   const [xAxisLabel, setXAxisLabel] = useState('Category')
   const [yAxisLabel, setYAxisLabel] = useState('Value')
   const [dataPoints, setDataPoints] = useState(7)
+  const [customOption, setCustomOption] = useState<any | null>(null)
   
   const chartRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -439,6 +442,7 @@ export default function EditorPage() {
   const handleChartTypeChange = (type: string) => {
     setSelectedChart(type)
     setChartData(generateSampleData(type, dataPoints))
+    setCustomOption(null)
     toast.success(`Switched to ${type} chart`)
   }
 
@@ -509,10 +513,13 @@ export default function EditorPage() {
   }
 
   const handleCopyConfig = () => {
-    const config = buildChartOption()
+    const config = customOption || buildChartOption()
     navigator.clipboard.writeText(JSON.stringify(config, null, 2))
     toast.success('Configuration copied to clipboard')
   }
+
+  const baseOption = buildChartOption()
+  const effectiveOption = customOption || baseOption
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
@@ -575,6 +582,7 @@ export default function EditorPage() {
               <TabsTrigger value="chart" className="flex-1">Chart</TabsTrigger>
               <TabsTrigger value="data" className="flex-1">Data</TabsTrigger>
               <TabsTrigger value="style" className="flex-1">Style</TabsTrigger>
+              <TabsTrigger value="tools" className="flex-1"><Wrench className="h-4 w-4 mr-2"/>Tools</TabsTrigger>
             </TabsList>
             
             <ScrollArea className="flex-1">
@@ -645,39 +653,6 @@ export default function EditorPage() {
                         />
                       </div>
                     </>
-                  )}
-                </div>
-
-                <Separator />
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="legend">Show Legend</Label>
-                    <Switch
-                      id="legend"
-                      checked={showLegend}
-                      onCheckedChange={setShowLegend}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="tooltip">Show Tooltip</Label>
-                    <Switch
-                      id="tooltip"
-                      checked={showTooltip}
-                      onCheckedChange={setShowTooltip}
-                    />
-                  </div>
-                  
-                  {selectedChart !== 'pie' && selectedChart !== 'gauge' && (
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="grid">Show Grid</Label>
-                      <Switch
-                        id="grid"
-                        checked={showGrid}
-                        onCheckedChange={setShowGrid}
-                      />
-                    </div>
                   )}
                 </div>
               </TabsContent>
@@ -796,6 +771,19 @@ export default function EditorPage() {
                   </div>
                 </div>
               </TabsContent>
+
+              <TabsContent value="tools" className="p-2 space-y-4 m-0">
+                <ToolsPanel
+                  className="h-[calc(100vh-200px)]"
+                  option={baseOption}
+                  onOptionChange={(next, _overrides) => setCustomOption(next)}
+                />
+                <div className="px-4 pb-4">
+                  <Button variant="outline" className="w-full" onClick={() => setCustomOption(null)}>
+                    Reset Tool Overrides
+                  </Button>
+                </div>
+              </TabsContent>
             </ScrollArea>
           </Tabs>
         </aside>
@@ -805,7 +793,7 @@ export default function EditorPage() {
           <Card className="h-full bg-white">
             <div className="h-full p-4">
               <ReactECharts
-                option={buildChartOption()}
+                option={effectiveOption}
                 style={{ height: '100%', width: '100%' }}
                 opts={{ renderer: 'svg' }}
                 onChartReady={(instance) => {
