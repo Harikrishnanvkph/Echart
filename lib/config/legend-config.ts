@@ -211,8 +211,6 @@ export interface LegendConfig {
   
   // Scroll
   scrollDataIndex?: number
-  pageButtonItemGap?: number
-  pageButtonGap?: number
   
   // Animation
   animation?: boolean
